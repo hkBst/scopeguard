@@ -468,9 +468,15 @@ where
     S: Strategy,
 {
     fn drop(&mut self) {
-        // This is OK because the fields are `ManuallyDrop`s
-        // which will not be dropped by the compiler.
-        let (value, dropfn) = unsafe { (ptr::read(&*self.value), ptr::read(&*self.dropfn)) };
+        // SAFETY: Using a ManuallyDrop<_> after taking its value out is UB.
+        // There are no further uses in this method, and, it being `Drop::drop`,
+        // no further method calls possible after it finishes. Therefore, this is safe.
+        let (value, dropfn) = unsafe {
+            (
+                ManuallyDrop::take(self.value),
+                ManuallyDrop::take(self.dropfn),
+            )
+        };
         if S::should_run() {
             dropfn(value);
         }
